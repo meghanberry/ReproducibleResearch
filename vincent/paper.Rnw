@@ -665,16 +665,17 @@ computeBlockClusterSum <- function(sparseModelMatrix, denseModelMatrix, residual
           sparseSum^2;
       }
       
-      denseSum <- rep(0, numDensePredictors);
-      sparseSum <- 0;
       sparseIndex = ifelse(tWeightedSparseModelMatrix@p[i] < tWeightedSparseModelMatrix@p[i + 1],
                            tWeightedSparseModelMatrix@p[i] + 1, 0);
       sparseColumn = ifelse(sparseIndex > 0, tWeightedSparseModelMatrix@i[sparseIndex] + 1, 0);
       
+      denseSum <- tWeightedDenseModelMatrix[,i];
+      sparseSum <- ifelse(sparseColumn > 0, tWeightedSparseModelMatrix@x[sparseIndex], 0);
+      
       prevClusterId <- currClusterId;
     } else {
       denseSum <- denseSum + tWeightedDenseModelMatrix[,i];
-      if (sparseColumn != 0) {
+      if (sparseColumn > 0) {
         sparseSum <- sparseSum + tWeightedSparseModelMatrix@x[sparseIndex];
       }
     }
