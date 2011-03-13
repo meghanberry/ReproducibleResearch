@@ -556,9 +556,6 @@ Model b is the first of the two with an absorbed variable, namely the
 survey cluster to which each household has been assigned. As such, it
 requires sparse matrix calculations to complete efficiently.
 
-{\em Note, there is a discrepancy between what is here and what is in
-  the original paper with regards to the standard errors. I'm working on it.}
-
 <<results=hide,echo=false>>=
 # model b
 denseModelMatrix.b <- modelMatrix.a;
@@ -700,7 +697,7 @@ computeBlockClusterSum <- function(sparseModelMatrix, denseModelMatrix, residual
 # there are 340000ish rows
 clusterSumFile.b <- file.path(dataPath, "clusterSum.b.rData");
 if (!file.exists(clusterSumFile.b)) {
-  clusterSum.b <- computeBlockClusterSum(sparseModelMatrix, denseModelMatrix, residuals.b, cleanData$hh_id);
+  clusterSum.b <- computeBlockClusterSum(sparseModelMatrix.b, denseModelMatrix.b, residuals.b, cleanData$hh_id);
   save(clusterSum.b, file = clusterSumFile.b);
 } else {
   load(clusterSumFile.b);
@@ -727,10 +724,47 @@ xtable(modelResults.b, digits=c(2, 3, 3))
 
 \subsection{Model c}
 
-I haven't made it to model c yet, however to compute it, all that I
-would need to do is replace the dense model matrix in model b with an
-expanded version. As the standard error calculations do not yet align,
-that effort is taking priority.
+Model c uses the same sparse matrix as model b, but expands the set of
+dense predictors to include previous voting history.
+
+<<results=hide,echo=false>>=
+sparseModelMatrix.c <- sparseModelMatrix.b
+denseModelMatrix.c <- cbind(denseModelMatrix.b, g2002 = cleanData$g2002, g2000 = cleanData$g2000, p2004 = cleanData$p2004, p2002 = cleanData$p2002, p2000 = cleanData$p2000)
+
+model.c <- computeLeastSquaresFit(sparseModelMatrix.c, denseModelMatrix.c, cleanData$voted);
+
+residuals.c <- cleanData$voted - sparseModelMatrix.c %*% model.c$beta.hat.sparse -
+  denseModelMatrix.c %*% model.c$beta.hat.dense
+
+# takes a while
+# there are 340000ish rows
+clusterSumFile.c <- file.path(dataPath, "clusterSum.c.rData");
+if (!file.exists(clusterSumFile.c)) {
+  clusterSum.c <- computeBlockClusterSum(sparseModelMatrix.c, denseModelMatrix.c,
+                                         residuals.c, cleanData$hh_id);
+  save(clusterSum.c, file = clusterSumFile.c);
+} else {
+  load(clusterSumFile.c);
+}
+
+sparseClusterSumLeftFactor <- t(chol(clusterSum.c$sparseClusterSum));
+crossClusterSumRightFactor <- solve(sparseClusterSumLeftFactor, t(clusterSum.c$crossClusterSum));
+denseClusterSumRightFactor <- t(chol(clusterSum.c$denseClusterSum - crossprod(crossClusterSumRightFactor)))
+
+denseOuterprod <- crossprod(denseClusterSumRightFactor)
+temp <- t(crossClusterSumRightFactor) -
+  crossprod(model.c$crossRightFactor, solve(model.c$sparseLeftFactor, sparseClusterSumLeftFactor))
+crossOuterprod <- tcrossprod(temp);
+denseFactorCrossprodInverse <- tcrossprod(solve(model.c$denseRightFactor))
+
+vCovBeta.hat.c <- denseFactorCrossprodInverse %*% (denseOuterprod + crossOuterprod) %*% denseFactorCrossprodInverse
+modelResults.c <- data.frame(estimate = as.numeric(model.c$beta.hat.dense), se = sqrt(diag(vCovBeta.hat.c)))
+rownames(modelResults.c) <- colnames(denseModelMatrix.c)
+@
+
+<<results=tex,echo=false>>=
+xtable(modelResults.c, digits=c(2, 3, 3))
+@ 
 
 %\bibliography{article} 
 
