@@ -1,0 +1,197 @@
+8
+
+dir
+1151
+svn://scan.psych.columbia.edu/Repository/trunk/densityUtility
+svn://scan.psych.columbia.edu/Repository
+
+
+
+2008-10-30T22:59:51.422152Z
+1143
+tor
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+a7b2ed3e-3a17-0410-bf9f-8ac42634c47e
+
+citation_plotter
+dir
+
+meta_analysis_master_file.mat
+file
+
+
+
+
+2007-05-09T18:10:37.000000Z
+9726b8cde6b4473bf1857064d5b5e687
+2007-05-21T22:02:15.268873Z
+581
+tor
+has-props
+
+confidence_volume
+dir
+
+densityUtility3
+dir
+
+meta_analysis_matlab_basics.rtf
+file
+
+
+
+
+2006-06-27T21:11:23.000000Z
+a98a75f29e2defe0b85ad799b8e83ed7
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+has-props
+
+plotting_functions
+dir
+
+read_database.m
+file
+
+
+
+
+2007-09-30T22:42:51.000000Z
+ffc2e3263a83df154bdc57e9f9ca2a65
+2007-10-11T17:10:14.007558Z
+828
+tor
+has-props
+
+density_flowchart.ppt
+file
+
+
+
+
+2006-06-27T21:11:23.000000Z
+e407e6792755915abcbd51e3069afef8
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+has-props
+
+cluster_overlap_monte_carlo
+dir
+
+studyplotUtility
+dir
+
+meta_analysis_table.m
+file
+
+
+
+
+2008-10-15T14:41:10.000000Z
+1d9ec0f709d363eccfb03ed3bf40204d
+2008-10-16T22:40:04.044357Z
+1134
+tor
+has-props
+
+database_point_probe.m
+file
+
+
+
+
+2008-10-15T16:02:22.000000Z
+99abcf814ab3d339f32d55e5d89b1c25
+2008-10-16T22:40:04.044357Z
+1134
+tor
+has-props
+
+dbcluster_point_table.m
+file
+
+
+
+
+2008-10-15T14:37:49.000000Z
+f3473d24efd4b40b63582c60f9784f91
+2008-10-16T22:40:04.044357Z
+1134
+tor
+has-props
+
+densityUtility
+dir
+
+additional_utilities_and_imgs
+dir
+
+meta_analysis_master_file_bkup.mat
+file
+
+
+
+
+2006-06-27T21:11:23.000000Z
+472bda365f40380929975b300c071a55
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+has-props
+
+read_database2_indevelopment.m
+file
+
+
+
+
+2006-06-27T21:11:23.000000Z
+1c4ffc9b761d8df1917c823c5679075e
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+has-props
+
+cluster_multivariate
+dir
+
+meta_analysis_master_file_backup.mat
+file
+
+
+
+
+2007-05-09T18:10:24.000000Z
+34cb245067e1076ccf4a298c3af878e3
+2007-06-22T15:47:23.262575Z
+631
+tor
+has-props
+
+read_database_Peter_2.m
+file
+
+
+
+
+2006-06-27T21:11:23.000000Z
+0bd207cb6cd83af31e7648fcff2192f0
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+

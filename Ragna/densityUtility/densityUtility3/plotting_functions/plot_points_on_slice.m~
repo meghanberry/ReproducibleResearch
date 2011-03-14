@@ -1,0 +1,148 @@
+function [handles, wh_slice, my_z] = plot_points_on_slice(xyz, varargin)
+    % [handles, wh_slice, my_z] = plot_points_on_slice(xyz, varargin)
+    %
+    % Usage:
+    % handles = plot_points_on_slice(xyz, 'nodraw', 'color', [0 0 1], 'marker', 'o','close_enough',8);
+    %
+    %
+    % saggital plot:
+    % figure; [handles, wh_slice, my_z] = plot_points_on_slice(xyz,'slice',45,'sagg','close',8,'markersize',10);
+    %
+    % Tor Wager, March 2007
+    % Documentation not complete; refer to code for input options, etc.
+%
+%
+% wh_slice is in voxels
+% close enough is in mm
+%
+% Example:
+% create_figure('Slice view'); [handles, wh_slice, my_z] = plot_points_on_slice(DB.xyz(strcmp(DB.Valence, 'neg'), :), 'slice', 23, 'color', [0 0 1], 'marker', 'o','close_enough',8);
+% [handles2, wh_slice, my_z] = plot_points_on_slice(DB.xyz(strcmp(DB.Valence, 'pos'), :), 'slice', 23, 'color', [1 1 0], 'marker', 'o','close_enough',8);
+
+    % defaults
+    % ------------------------------------------------------
+
+    color = 'k';
+    facecolor = 'k';
+    marker = 'o';
+    drawslice = 1;
+    close_enough = 10;   % in mm
+    markersize = 12;
+    orientation = 'axial';
+
+    % ------------------------------------------------------
+    % parse inputs
+    % ------------------------------------------------------
+
+    for i = 1:length(varargin)
+        if ischar(varargin{i})
+            switch varargin{i}
+                % reserved keywords
+                case {'noslice', 'nodraw'}, drawslice = 0;
+
+                case 'color', color = varargin{i+1};
+                case 'marker', marker = varargin{i+1};
+
+                case {'slice', 'wh_slice'}, wh_slice = varargin{i+1};
+
+                case {'close', 'closeenough', 'close_enough'}, close_enough = varargin{i+1};
+
+                case {'sagg','saggital','sagittal'}, orientation = 'saggital';
+
+                case {'MarkerSize', 'markersize'}, markersize = varargin{i+1};
+
+                    case {'MarkerFaceColor', 'markerfacecolor'}, facecolor = varargin{i+1};
+                        
+                otherwise, warning(['Unknown input string option:' varargin{i}]);
+            end
+        end
+    end
+
+    % ------------------------------------------------------
+    % get other info
+    % ------------------------------------------------------
+
+    ovl = which('scalped_avg152T1.img');
+    ovlV = spm_vol(ovl);
+
+    if ~exist('wh_slice', 'var') || isempty(wh_slice)
+        xyzvox = mm2voxel(xyz, ovlV.mat, 1);
+        modes = mode(xyzvox, 1);
+        wh_slice = modes(3);
+        fprintf(1,'No slice entered. Picking slice with most points: z = %3.0f\n', wh_slice);
+    end
+
+    fprintf(1,'Plotting points within %3.0f mm of slice\n', close_enough);
+
+    % ------------------------------------------------------
+    % draw brain slice
+    % ------------------------------------------------------
+
+
+    if drawslice
+
+        v = spm_read_vols(ovlV);
+
+        mm = voxel2mm([1 1 1; size(v)]', ovlV.mat);
+        xcoords = linspace(mm(1,1), mm(1,2), size(v, 1));
+        ycoords = linspace(mm(2,1), mm(2,2), size(v, 2));
+        %zcoords = linspace(mm(3,1), mm(3,2), size(v, 3));
+
+        switch orientation
+            case 'axial'
+                [X, Y] = meshgrid(xcoords, ycoords); Z = v(:,:,wh_slice)';
+                %figure; 
+                contour(X, Y, Z); colormap(gray);
+
+            case 'saggital'
+                zcoords = linspace(mm(3,1), mm(3,2), size(v, 3));
+                [X, Y] = meshgrid(ycoords, zcoords); Z = squeeze(v(wh_slice,:,:))';
+                %figure; 
+                h = contour(X, Y, Z); colormap(gray);
+  
+                hh = imagesc(ycoords, zcoords, Z);
+                
+                h = findobj(gca,'Type','hggroup');
+                set(h,'LineWidth',1.5);
+                set(gca,'XDir','Reverse')
+
+
+            otherwise, error('Unknown orientation.');
+
+        end
+
+        axis image
+    end
+
+    % ------------------------------------------------------
+    % put points on slice
+    % ------------------------------------------------------
+
+    switch orientation
+        case 'saggital'
+            % get z coord in mm of this slice
+            tmp_xyzmm = voxel2mm([wh_slice 1 1]', ovlV.mat);
+            my_z = tmp_xyzmm(1);
+
+            wh = find(abs(xyz(:,1) - my_z) <= close_enough);
+            hold on;
+            handles = plot(xyz(wh,2), xyz(wh,3), marker, 'Color', color, 'MarkerFaceColor',facecolor, 'MarkerSize', markersize);
+
+        case 'axial'
+
+            % get z coord in mm of this slice
+            tmp_xyzmm = voxel2mm([1 1 wh_slice]', ovlV.mat);
+            my_z = tmp_xyzmm(3);
+
+            wh = find(abs(xyz(:,3) - my_z) <= close_enough);
+            hold on;
+            handles = plot(xyz(wh,1), xyz(wh,2), marker, 'Color', color, 'MarkerFaceColor',facecolor, 'MarkerSize', markersize);
+
+
+        otherwise, error('Unknown orientation.');
+
+    end
+
+
+
+end
