@@ -1,0 +1,5 @@
+The necessary data file is included in the absurdly long-named folder. The Sweave file should cache intermediate calculations in that folder, but without them rnning the thing can take quite a while.
+
+Consider running from R64, as there are quite a few large matrices created and memory can get rather fragmented.
+
+Other than that, R's working directory should be one level above the data directory.

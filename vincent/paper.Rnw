@@ -1,0 +1,771 @@
+\documentclass[10pt]{article}
+
+\usepackage{amsmath}
+\usepackage{verbatim}
+\usepackage{mathrsfs}
+\usepackage{url}
+
+\let\proglang=\textsf
+\newcommand{\pkg}[1]{{\fontseries{b}\selectfont #1}}
+
+\newcommand{\E}{\mathsf{E}}
+\newcommand{\VAR}{\mathsf{VAR}}
+\newcommand{\COV}{\mathsf{COV}}
+\newcommand{\SD}{\mathsf{SD}}
+\newcommand{\Prob}{\mathsf{P}}
+
+\begin{document}
+
+<<echo=false,results=hide>>=
+library(Matrix)
+library(nnet)
+library(xtable)
+library(foreign)
+@ 
+
+\section{Target paper}
+
+The paper replicated herein is ``Social Pressure and Voter Turnout:
+Evidence from a Large-scale Field Experiment'' by Alan Gerber, Donald
+Green, and Christopher Larimer, published in American Political
+Science Review, February 2008. An electronic copy can be obtained at:
+\url{http://www.apsanet.org/imgtest/APSRFeb08Gerberetal.pdf}. A copy
+of the replication archive is available on Donald Green's website at
+\url{http://vote.research.yale.edu/replication.html} under the title ``Social Pressure and Voting (APSR):  Data and Replication Programs''.
+
+In brief, the paper examines the influence of social pressure on
+increasing voter turn-out by conducting a controlled experiment on a
+large group of Michigan voters before a midterm primary
+election. Social pressure is achieved by mailing to each household in
+an area the voting record of each of the neighbors as well as
+indicating that the recipients choice to vote will be disseminated to
+those neighbors after the election. This is compared with other forms
+of more mild encouragement.
+
+The analysis proceeds in three parts: first, data are aggregated into
+households and their summary statistics compared. Overall, the
+objective of this is to show that treatments were assigned at
+random. Second, to reinforce this point, a multinomial logistic
+regression is performed and used to demonstrate that control variables
+are largely uncorrelated with treatment assignment. Finally, a
+sequence of linear regressions are performed. The coefficients and
+standard errors from these are compared, demonstrating that, in
+general, the different treatments are all statistically significantly
+different from the control and that what control variables there are
+do not explain away the difference.
+
+\section{Replication of results}
+
+To replicate the results, the use of R64 is recommended as many of the
+matrices are large in size. It is possible possible that memory may
+become fragmented as the code proceeds, such that intermediate
+results may need to be cached and the program restarted. This
+motivates the use of \texttt{rm} throughout.
+
+\subsection{Dependencies}
+
+The libraries \pkg{foreign}, \pkg{nnet}, \pkg{Matrix} are used in the
+analysis. \pkg{xtable} is used in creating this report.
+
+\subsection{Reading the data}
+
+It is assumed that the replication archive is in the working path
+of \proglang{R}.
+<<echo=FALSE>>=
+dataPath <- paste("Replication Dataset for Gerber",
+                  "et al 2008 APSR Social Pressure",
+                  "Study");
+individualDataFileName <-
+  paste("Replication Dataset for Gerber et al 2008",
+        "APSR Social Pressure Study.dta");
+householdDataFileName <-
+  paste("Replication Dataset for Gerber et al 2008",
+        "APSR Social Pressure Study-household level.dta");
+
+rawData <- read.dta(file.path(dataPath, individualDataFileName));
+@
+
+Once configured, intermediate results are stored in the directory of
+the replication archive.
+
+\subsection{Cleaning the data}
+
+The data include a few unusual artifacts. The results of voting in the
+election of interest as well as the 2004 primary were encoded as
+``Yes''/``No'', while other elections were recorded as 0/1. These are
+removed and a ``clean'' version of the data is used.
+
+<<echo=false>>=
+# replace 2004 primary results with 0/1
+levels2004 <- levels(rawData$p2004);
+noLevel2004 <- levels2004[which(levels2004 == "No")];
+
+# replace voting result with 0/1
+levelsVoted <- levels(rawData$voted);
+noLevelVoted <- levelsVoted[which(levelsVoted == "No")];
+
+cleanData <- rawData;
+cleanData$p2004 <- ifelse(rawData$p2004 == noLevel2004, 0, 1);
+cleanData$voted <- ifelse(rawData$voted == noLevelVoted, 0, 1);
+rm(rawData, levels2004, noLevel2004, levelsVoted, noLevelVoted)
+@ 
+
+\subsection{Table 1}
+
+Table 1 from the paper is a summary of voting records at a household
+level. To group the data by households and to compute the required
+summary statistics, we use the \texttt{by} function in R and apply
+transformations to the named columns. As this takes a while, the
+result is saved to disk if necessary and reused thereafter.
+
+<<echo=false,results=hide>>=
+treatments <- levels(cleanData$treatment);
+if (!file.exists(file.path(dataPath, householdDataFileName))) {
+  # the first column transformation is simply 'max', but treatment is
+  # a factor and therefore does not behave as nicely as one might want
+  columnTransformations <-
+    list(treatment = function(x) { max(sapply(x, function(x) { which(treatments == x); })) },
+         hh_size = max,
+         g2002 = mean,
+         g2000 = mean,
+         p2004 = mean,
+         p2002 = mean,
+         p2000 = mean,
+         sex = mean,
+         yob = mean);
+
+  householdsProcessed <- 0;
+  collapse <- function(subset) {
+    result <- sapply(names(columnTransformations), function(columnName) {
+      columnTransformation <- columnTransformations[[columnName]];
+      return(columnTransformation(subset[[columnName]]));
+    });
+    
+    env <- environment(collapse);
+    env$householdsProcessed <- env$householdsProcessed + 1;
+    if (env$householdsProcessed %% 1000 == 0) cat("hh: ", env$householdsProcessed, "\n", sep="");
+    
+    return(result);
+  }
+  
+  # by returns a list, which we would rather have as a data.frame
+  householdData <- data.frame(t(sapply(by(cleanData, cleanData$hh_id, collapse), unlist)));
+  householdData$treatment <- as.factor(sapply(householdData$treatment,
+                                              function(x) { treatments[x] }));
+  
+  write.dta(householdData,
+            file.path(dataPath, householdDataFileName));
+
+  rm(columnTransformations, householdsProcessed, collapse);
+} else {
+  householdData <- read.dta(file.path(dataPath, householdDataFileName));
+}
+@
+
+Once the household data has been computed, Table 1 merely summarizes it.
+
+<<echo=false>>=
+treatmentColumn <- which(colnames(householdData) == "treatment");
+collapse <- function(subset) {
+  result <- apply(subset[-treatmentColumn], 2, mean);
+  result[length(result) + 1] <- nrow(subset);
+  
+  return(result);
+}
+householdSummary <- t(sapply(by(householdData, householdData$treatment, collapse), unlist));
+colnames(householdSummary)[ncol(householdSummary)] <- "n";
+@
+
+<<results=tex,echo=false>>=
+testTable <- householdSummary
+testTable[,"yob"] <- 2006 + 2/3 - testTable[,"yob"]
+colnames(testTable) <- c("Household size", "Nov 2002", "Nov 2000",
+                         "Aug 2004", "Aug 2002", "Aug 2000",
+                         "Female", "Age (in years)", "N =");
+for (i in 1:8) testTable[,i] <- round(testTable[,i], 2)
+testTable[,9] <- as.integer(testTable[,9])
+
+xtable(t(testTable), caption="Table 1", label="tab:1")
+rm(treatmentColumn, collapse, householdSummary, testTable);
+@ 
+
+\subsection{Multinomial logit regression}
+
+After creating Table 1 to summarize the households, the original
+authors fit a multinomial logit model on the probability of receiving
+any one treatment given ones vote history and compare that to
+similarly fit model without any predictors. To fit this model, we use
+the \texttt{multinom} function in the \pkg{nnet} package.
+
+As \proglang{Stata} automatically centers the inputs for such a
+regression, while \texttt{multinom} does not, we have to further
+processess the household data.
+
+<<echo=false>>=
+predictionColumns <-  c("hh_size", "g2002", "g2000", "p2004", 
+                        "p2002", "p2000", "sex", "yob");
+
+center <- function(x) { (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE); };
+
+centeredHouseholdData <- householdData;
+for (predictorName in predictionColumns) {
+  centeredHouseholdData[[predictorName]] <- center(householdData[[predictorName]]);
+}
+@
+
+Fitting the multinomial logit model uses syntax similar to that of a
+linear model.
+
+<<echo=false>>=
+multinomialLogitFile <- file.path(dataPath, "multinomialLogit.rData");
+if (!file.exists(multinomialLogitFile)) {
+  multinomialLogitFit <- multinom(treatment ~ hh_size + g2002 + g2000 + p2004 + p2002 +
+                                  p2000 + sex + yob, centeredHouseholdData)
+  save(multinomialLogitFit, file = multinomialLogitFile);
+} else {
+  load(multinomialLogitFile);
+}
+@ 
+
+To constrast this with a model that includes no predictors, we calculate the maximum likelihood fit directly and evaluate the log-likelihood.
+
+<<echo=false>>=
+nullLogLikelihood <- {
+  # null likelihood is permutation invariant as to which
+  # group is baseline
+  baselineGroup <- length(treatments);
+  
+  n.i <- table(centeredHouseholdData$treatment);
+  n <- sum(n.i);
+
+  result <- 0;
+  logBaselineSize <- log(n.i[baselineGroup]);
+  for (i in 1:length(treatments)) {
+    if (i == baselineGroup) next();
+
+    result <- result + n.i[i] * (log(n.i[i]) - logBaselineSize);
+  }
+  result <- result - n * (log(n) - logBaselineSize);
+  result;
+}
+@
+
+<<results=hide,echo=false>>=
+LRTestStatistic <- -2 * (nullLogLikelihood + multinomialLogitFit$value)
+numPredictors <- length(predictionColumns) + 1;
+numCoefficients <- numPredictors * (length(treatments) - 1);
+
+degreesOfFreedom <- numCoefficients - (length(treatments) - 1);
+pValue <- 1 - pchisq(LRTestStatistic, degreesOfFreedom)
+@
+
+Computed as such, the log likelihood ratio statistic is
+<<results=tex,echo=false>>=
+cat(round(LRTestStatistic, 2))
+@
+and the associated p-value is
+<<results=tex,echo=false>>=
+cat(round(pValue, 3))
+@
+.
+
+
+<<echo=FALSE,results=hide>>=
+rm(predictionColumns, center, multinomialLogitFit, nullLogLikelihood, LRTestStatistic,
+   numPredictors, numCoefficients, degreesOfFreedom, pValue);
+@ 
+
+\subsection{Table 2}
+
+Table 2 is comparatively straightforward, and is no more than a
+summary of the individual level data.
+
+<<echo=false,results=hide>>=
+individualData <- by(cleanData, cleanData$treatment,
+                     function(subset) { c(mean(subset$voted), nrow(subset)); })
+@ 
+<<echo=FALSE,results=tex>>=
+individualData <- data.frame(sapply(individualData, function(x) x))
+colnames(individualData) <- c("Control", "Hawthorne", "Civic Duty", "Neighbors", "Self")
+rownames(individualData) <- c("Percentage Voting", "N of Individuals")
+individualData[1,] <- round(100 * individualData[1,], 1)
+individualData[2,] <- as.integer(individualData[2,])
+xtable(individualData, label="tab:2", caption="Table 2")
+@
+
+\subsection{Table 3}
+
+To compute Table 3 is by far the most difficult part of the
+analysis. While compute least-squares estimates of the coefficients
+for the different models is simple, the original analysis uses a
+feature of \proglang{Stata} that is difficult to replicate in
+\proglang{R} without utilizing brute force, namely a ``robust
+cluster'' calculation of errors. Before proceeding to
+replicate it, we discuss that calculation and how to compute it
+(somewhat) efficiently.
+
+\section{Stata-like robust cluster variance estimates in R}
+
+\subsection{Robust cluster variance estimators}
+
+In a typical linear model, specified by ${\bf Y} = {\bf X}\beta +
+\epsilon$, with $\epsilon$ a zero mean vector of errors. Regardless of
+the dependencies in the components of $\epsilon$, the estimator of
+$\beta$ that gives the lowest mean-squared error is the conventional
+$\hat\beta = \left({\bf X}^\top{\bf X}\right)^{-1}{\bf X}^\top{\bf
+  Y}$. It the becomes of interest to study the error in our estimate,
+the covariance of which is given by:
+
+\begin{align*}
+\COV\left(\hat\beta\right) & =\COV\left(\left({\bf X}^\top{\bf X}\right)^{-1}{\bf
+    X}^\top{\bf Y}\right), \\
+& = \left({\bf X}^\top{\bf X}\right)^{-1}{\bf
+    X}^\top\COV({\bf Y}){\bf X}\left({\bf X}^\top{\bf X}\right)^{-1},
+  \\
+& = \left({\bf X}^\top{\bf X}\right)^{-1}{\bf A}\left({\bf X}^\top{\bf X}\right)^{-1}
+\end{align*}
+
+This is dubbed a ``sandwich'' estimator, due to its chiastic form. For
+a Gaussian model with independent and identical errors having variance $\sigma^2$, we obtain the
+traditional ${\bf A} = \sigma^2{\bf X}^\top{\bf X}$. We are then free to
+estimate $\sigma^2$ however we like. If $n$ is the number of
+observations and $p$ the number of estimated coefficients, the unbiased estimator
+$\hat\sigma^2 = \frac{1}{n - p}\sum_{i=1}^n(y_i -
+x_i^\top\hat\beta)^2$ is a popular choice.
+
+When such a model is fit in \proglang{Stata}, it is possible to
+specify that the estimate of the covariance of the observations be computed ``robustly''. One robust option is
+``\texttt{robust cluster}''. If we can divide the observations into
+$J$ different clusters, with the observations in cluster $j$ denoted
+by $c_j$, the \texttt{robust cluster} method sets the ``meat'' of the sandwich
+to:
+
+\begin{equation*}
+{\bf A} = \sum_{j=1}^J\left[\sum_{k\in c_j} r_kx_{k.}\right]^\top
+\left[\sum_{k\in c_j} r_kx_{k.}\right].
+\end{equation*}
+
+\noindent In the above, $x_{k.}$ is a row vector, and $r_k$ is the residual of
+the $k$th observation using the least-squares estimate. In essence,
+for each cluster we compute an empirical estimate of the covariance
+with each observation weighted by its residual, and then combine all
+of the clustered information. This permits observations to share
+correlations within their clusters while assuming that each cluster is
+independent.
+
+\subsection{Absorbing regressions}
+
+For design matrices of moderate size, handling this calculation in \proglang{R} is relatively
+straightforward. With a few optimizations, it can even be done rather
+efficiently without dipping into \proglang{C}. However, problems may arise when the regression model in
+\proglang{Stata} is not a simple linear regression, but instead an
+``absorbing'' regression, \texttt{areg}.
+
+For the \proglang{R} user, an \texttt{areg} in \proglang{Stata} is
+linear regression with single categorical variable used to create a
+vary large number of ``dummy variables''. This categorical factor may
+or may not be related to the clusters that are used in the robust
+estimate, so that there can actually be two groupings taking place at
+once in the data. As an example of an absorbing regression , model (b) of Table 3 in the
+replicated paper is a linear regression with 344084 observations and 5
+regular predictors, and an additional 9999 columns, each one
+corresponding to membership in a particular sampling cluster.
+
+When faced with such a problem, sparse matrix techniques enable the
+model matrix to be efficiently formed, multiplied, and solved in
+seconds. To do so, one need only to note the pattern of non-zeroes in
+the model matrix and feed this information to a package such as
+\pkg{Matrix}. Depending on one's familiar with sparse matrices and
+linear regression, this may itself be a daunting task but it is beyond
+the scope of this article.
+
+Even though a sparse model matrix permits the easy calculation of the
+estimate of the coefficients, the robust cluster matrix ${\bf A}$ requires special
+consideration to create efficiently. If made dense, the
+matrix multiplication $\left({\bf X}^\top{\bf
+    X}\right)^{-1}{\bf A}\left({\bf X}^\top{\bf X}\right)^{-1}$ can be
+prohibitively slow. Although the crossproduct of the design matrices
+is sparse, to complete the calculation each is coerced to a dense
+matrix. In model (b), this requires two multiplication of
+$10004\times10004$ matrices.
+
+Alternatively, if $A$ is created as a sparse matrix, computing the
+sums that fill in $A$ require many updates that introduce
+new patterns of non-zeroes, consequently requiring frequent allocation and moving of
+memory.
+
+The solution that we propose is to decompose ${\bf X}$ into a
+dense portion, corresponding to the standard predictors in the model,
+and into a sparse portion that captures the ``absorbed''
+variable. Thus, we write:
+
+\begin{equation*}
+{\bf X} = \begin{bmatrix} {\bf X}_{\rm s} & {\bf X}_{\rm
+    d} \end{bmatrix}.
+\end{equation*}
+
+As handling a block matrix in \proglang{R} with differently classed
+components may be cumbersome, we take block-wise Cholesky
+decomposition of its crossproduct.
+
+\begin{equation*}
+\begin{bmatrix}
+{\bf L}_{\rm s} & 0 \\ {\bf L}_{{\rm s}\times{\rm d}} & {\bf L}_{\rm
+  d} \end{bmatrix}
+\begin{bmatrix}
+{\bf L}_{\rm s}^\top & {\bf L}_{{\rm s}\times{\rm d}}^\top \\
+0 & {\bf L}_{\rm
+  d}^\top \end{bmatrix} =
+\begin{bmatrix}
+{\bf X}_{\rm s}^\top{\bf X}_{\rm s} & {\bf X}_{\rm s}^\top{\bf
+  X}_{\rm d} \\
+{\bf X}_{\rm d}^\top{\bf X}_{\rm s} & {\bf X}_{\rm d}^\top{\bf
+  X}_{\rm d}
+\end{bmatrix}.
+\end{equation*}
+
+From this relationship, each component is created as:
+\begin{align*}
+{\bf L}_{\rm s}{\bf L}_{\rm s}^\top & = {\bf X}_{\rm s}^\top{\bf
+  X}_{\rm s}, \\
+{\bf L}_{{\rm s}\times{\rm d}} & = {\bf X}_{\rm d}^\top{\bf X}_{\rm
+  s}{\bf L}_{\rm s}^{-\top}, \\
+{\bf L}_{\rm d}{\bf L}_{\rm d}^\top & = {\bf X}_{\rm d}^\top{\bf
+  X}_{\rm d} - {\bf L}_{{\rm s}\times{\rm d}}{\bf L}_{{\rm s}\times{\rm d}}^\top.
+\end{align*}
+
+Finally, the inverse of the crossproduct of the design matrix is given
+by:
+
+\begin{equation*}
+\left({\bf X}^\top{\bf X}\right)^{-1} =
+\begin{bmatrix}
+{\bf L}_{\rm s}^{-\top} & -{\bf L}_{\rm s}^{-\top}{\bf L}_{{\rm
+    s}\times{\rm d}}^\top{\bf L}_{\rm d}^{-\top} \\
+0 & {\bf L}_{\rm d}^{-\top}
+\end{bmatrix}
+\begin{bmatrix}
+{\bf L}_{\rm s}^{-1} & 0 \\ -{\bf L}_{\rm d}^{-1}{\bf L}_{{\rm s}\times{\rm d}}{\bf L}_{\rm s}^{-1} & {\bf L}_{\rm
+  d}^{-1} \end{bmatrix}.
+\end{equation*}
+
+\subsection{Efficient computation of the cluster sum}
+
+Being able to calculate the regression efficiently is only the
+simplest piece of the puzzle. Slightly more effort is required to
+efficiently create ${\bf A}$.
+
+The structure of the absorbing regression and ${\bf X}_{\rm s}$
+enables a significant simplification: namely that there is no more
+than one non-zero in any row of ${\bf X}_{\rm s}$. In general, this
+may not prove much of a benefit as it is possible for a cluster to
+contain an observation in every one of the absorbed
+categories. However, when the clusters are {\em nested}
+inside the absorbed categories, the upper-left block of ${\bf A}$ will
+be a diagonal matrix. Furthermore, when treating any single cluster,
+the contribution to the off-diagonal block of the cluster-sum matrix
+is restricted to a single row.
+
+\section{Table 3}
+
+As Table 3 is composed of three regressions, and each one takes
+considerable effort to compute, the calculation proceeds in three parts.
+
+\subsection{Model a}
+
+The first model is actually a simple linear regression with no
+absorbing variables. In that sense, calculating it is straightforward,
+and computing the robust cluster error is tedious, but not
+difficult.
+
+In this model, we predict voting decisions given indicator
+variables of treatment assignment, and nothing more. Robust errors are
+calculated by clustering the observations by their households.
+
+<<results=hide,echo=false>>=
+numObservations <- nrow(cleanData);
+modelMatrix.a <- cbind(rep(1, numObservations),
+                       cleanData$treatment == " Hawthorne",
+                       cleanData$treatment == " Civic Duty",
+                       cleanData$treatment == " Neighbors",
+                       cleanData$treatment == " Self");
+colnames(modelMatrix.a) <- c("(Intercept)", " Hawthorne", " Civic Duty",
+                             " Neighbors", " Self")
+
+modelCrossprodInverse.a <- solve(crossprod(modelMatrix.a));
+beta.hat.a <- modelCrossprodInverse.a %*% crossprod(modelMatrix.a, cleanData$voted);
+residuals.a <- cleanData$voted - modelMatrix.a %*% beta.hat.a;
+
+computeClusterSum <- function(modelMatrix, residuals, clusterIds) {
+  numColumns <- ncol(modelMatrix);
+
+  weightedModelMatrix <- apply(modelMatrix, 2, function(col) { col * residuals });
+  
+  householdsProcessed <- 0;
+  sumCluster <- function(subset) {
+    if (nrow(subset) == 1) {
+      result <- as.numeric(subset);
+    } else {
+      # for multiple rows, add the columns together
+      result <- apply(subset, 2, function(col) {
+        return(sum(col));
+      });
+    }
+    result <- tcrossprod(as.numeric(result));
+
+    env <- environment(sumCluster);
+    env$householdsProcessed <- env$householdsProcessed + 1;
+    if (env$householdsProcessed %% 1000 == 0) cat("hh: ", env$householdsProcessed, "\n", sep="");
+    
+    return (result);
+  }
+  # for each cluster, sum the model rows weighted by their residuals
+  # then take the crossproduct of those rows
+  byResult <-  by(weightedModelMatrix, clusterIds, sumCluster)
+
+  clusterSum <- matrix(0, ncol(modelMatrix), ncol(modelMatrix))
+  for (i in 1:length(byResult)) {
+    clusterSum <- clusterSum + byResult[[i]]
+  }
+  return(clusterSum);
+}
+
+# there are 180000ish clusters, so this takes a while to run
+
+clusterSumFile.a <- file.path(dataPath, "clusterSum.a.rData");
+if (!file.exists(clusterSumFile.a)) {
+  clusterSum.a <- computeClusterSum(modelMatrix.a, residuals.a, cleanData$hh_id)
+  save(clusterSum.a, file = clusterSumFile.a);
+} else {
+  load(clusterSumFile.a);
+}
+vCovBeta.hat.a <- modelCrossprodInverse.a %*% clusterSum.a %*% modelCrossprodInverse.a
+modelResults.a <- data.frame(estimate = beta.hat.a, se = sqrt(diag(vCovBeta.hat.a)))
+@
+
+The least-squares estimate of the coefficients for the treatments is
+given by:
+<<results=tex,echo=false>>=
+xtable(modelResults.a, digits=c(2, 3, 3))
+rm(computeClusterSum, clusterSum.a, clusterSumFile.a)
+@ 
+
+\subsection{Model b}
+
+Model b is the first of the two with an absorbed variable, namely the
+survey cluster to which each household has been assigned. As such, it
+requires sparse matrix calculations to complete efficiently.
+
+<<results=hide,echo=false>>=
+# model b
+denseModelMatrix.b <- modelMatrix.a;
+absorbingIds <- unique(cleanData$cluster)
+
+sparseModelMatrixFile.b <- file.path(dataPath, "sparseModelMatrix.b.rData");
+if (!file.exists(sparseModelMatrixFile.b)) {
+  numNonZeroes <- numObservations - sum(cleanData$cluster == absorbingIds[1])
+  sparseColumnIndices <- rep(0, numNonZeroes)
+  sparseRowPointers <- rep(0, numObservations + 1)
+
+  # construct the sparse model matrix
+  sparseIndex <-  1;
+  for (i in 1:numObservations) {
+    sparseRowPointers[i] <- sparseIndex - 1;
+    
+    # minus 2 as 1 for 0 based indexing and another to eliminate the base group
+    absorbingId <- which(absorbingIds == cleanData$cluster[i]) - 2;
+    if (absorbingId >= 0) {
+      sparseColumnIndices[sparseIndex] <- absorbingId;
+      sparseIndex <- sparseIndex + 1;
+    }
+  }
+  sparseRowPointers[numObservations + 1] <- sparseIndex - 1;
+
+  numPredictors <- length(absorbingIds) - 1;
+  sparseModelMatrix.b <-
+    sparseMatrix(j = sparseColumnIndices, x = rep(1, numNonZeroes),
+                 p = sparseRowPointers,  dims=c(numObservations, numPredictors), index1 = FALSE)
+  
+  save(sparseModelMatrix.b, file = sparseModelMatrixFile.b);
+} else {
+  load(sparseModelMatrixFile.b);
+}
+computeLeastSquaresFit <- function(sparseModelMatrix, denseModelMatrix, y) {
+  # factor the crossproduct of the model matrix
+  sparseLeftFactor <- t(chol(crossprod(sparseModelMatrix)));
+  crossRightFactor <- solve(sparseLeftFactor, crossprod(sparseModelMatrix, denseModelMatrix));
+  denseRightFactor <- chol(crossprod(denseModelMatrix) - crossprod(crossRightFactor));
+  
+  # project observations onto to column space
+  sparseProjection <- solve(sparseLeftFactor, crossprod(sparseModelMatrix, y));
+  temp <- crossprod(denseModelMatrix, y) - crossprod(crossRightFactor, sparseProjection);
+  denseProjection <- solve(t(denseRightFactor), temp);
+  
+  beta.hat.dense <- solve(denseRightFactor, denseProjection);
+  temp <- sparseProjection - crossRightFactor %*% beta.hat.dense;
+  beta.hat.sparse <- solve(t(sparseLeftFactor), temp);
+
+  return(list(sparseLeftFactor = sparseLeftFactor,
+              crossRightFactor = crossRightFactor,
+              denseRightFactor = denseRightFactor,
+              beta.hat.dense  = beta.hat.dense,
+              beta.hat.sparse = beta.hat.sparse));
+}
+
+model.b <- computeLeastSquaresFit(sparseModelMatrix.b, denseModelMatrix.b, cleanData$voted);
+
+residuals.b <- cleanData$voted - sparseModelMatrix.b %*% model.b$beta.hat.sparse -
+  denseModelMatrix.b %*% model.b$beta.hat.dense
+
+computeBlockClusterSum <- function(sparseModelMatrix, denseModelMatrix, residuals, clusterIds) {
+  numObservations <- nrow(sparseModelMatrix);
+  numSparsePredictors <- ncol(sparseModelMatrix);
+  numDensePredictors <- ncol(denseModelMatrix);
+
+  sortedClusterIds <- sort(clusterIds);
+  clusterPermutation <- as(order(clusterIds), "pMatrix")
+
+  # reorder by cluster id as well as weight by residual
+  # since matrices are stored in column major format and we want to
+  # operate on the rows, we take the transpose up front
+  tWeightedSparseModelMatrix <- t(Diagonal(numObservations, clusterPermutation %*% residuals) %*%
+                                  clusterPermutation %*% sparseModelMatrix)
+
+
+  # do the same for the dense model matrix
+  tWeightedDenseModelMatrix <- t(Diagonal(numObservations, clusterPermutation %*% residuals) %*%
+                               clusterPermutation %*% denseModelMatrix);
+
+  sparseClusterSum <- rep(0, numSparsePredictors);
+  # lower left block, as updating columns is quicker than rows
+  crossClusterSum <- matrix(0, numDensePredictors, numSparsePredictors);
+  denseClusterSum <- matrix(0, numDensePredictors, numDensePredictors);
+
+  denseSum <- rep(0, numDensePredictors);
+  sparseSum <- 0;
+
+  prevClusterId <- sortedClusterIds[1];
+  sparseIndex = ifelse(tWeightedSparseModelMatrix@p[1] < tWeightedSparseModelMatrix@p[2],
+                       tWeightedSparseModelMatrix@p[1] + 1, 0);
+  # "sparseColumn" is actally a row of the transpose matrix, but we
+  # want to know to which of the aborbed groups does the row belong
+  sparseColumn = ifelse(sparseIndex > 0, tWeightedSparseModelMatrix@i[sparseIndex] + 1, 0)
+  
+  for (i in 1:numObservations) {
+    currClusterId <- sortedClusterIds[i];
+    if (currClusterId != prevClusterId) {
+      denseClusterSum <- denseClusterSum + tcrossprod(denseSum);
+      if (sparseColumn != 0) {
+        crossClusterSum[,sparseColumn] <- crossClusterSum[,sparseColumn] +
+          denseSum * sparseSum;
+        sparseClusterSum[sparseColumn] <- sparseClusterSum[sparseColumn] +
+          sparseSum^2;
+      }
+      
+      sparseIndex = ifelse(tWeightedSparseModelMatrix@p[i] < tWeightedSparseModelMatrix@p[i + 1],
+                           tWeightedSparseModelMatrix@p[i] + 1, 0);
+      sparseColumn = ifelse(sparseIndex > 0, tWeightedSparseModelMatrix@i[sparseIndex] + 1, 0);
+      
+      denseSum <- tWeightedDenseModelMatrix[,i];
+      sparseSum <- ifelse(sparseColumn > 0, tWeightedSparseModelMatrix@x[sparseIndex], 0);
+      
+      prevClusterId <- currClusterId;
+    } else {
+      denseSum <- denseSum + tWeightedDenseModelMatrix[,i];
+      if (sparseColumn > 0) {
+        sparseSum <- sparseSum + tWeightedSparseModelMatrix@x[sparseIndex];
+      }
+    }
+    
+    if (i %% 10000 == 0) cat("obs: ", i, "\n", sep="")
+  }
+
+  denseClusterSum <- denseClusterSum + tcrossprod(denseSum);
+  if (sparseColumn != 0) {
+    crossClusterSum[,sparseColumn] <- crossClusterSum[,sparseColumn] +
+      denseSum * sparseSum;
+    sparseClusterSum[sparseColumn] <- sparseClusterSum[sparseColumn] +
+      sparseSum^2;
+  }
+
+  return(list(sparseClusterSum = Diagonal(numSparsePredictors, sparseClusterSum),
+              crossClusterSum = crossClusterSum,
+              denseClusterSum = denseClusterSum));
+}
+
+# takes a while
+# there are 340000ish rows
+clusterSumFile.b <- file.path(dataPath, "clusterSum.b.rData");
+if (!file.exists(clusterSumFile.b)) {
+  clusterSum.b <- computeBlockClusterSum(sparseModelMatrix.b, denseModelMatrix.b, residuals.b, cleanData$hh_id);
+  save(clusterSum.b, file = clusterSumFile.b);
+} else {
+  load(clusterSumFile.b);
+}
+
+sparseClusterSumLeftFactor <- t(chol(clusterSum.b$sparseClusterSum));
+crossClusterSumRightFactor <- solve(sparseClusterSumLeftFactor, t(clusterSum.b$crossClusterSum));
+denseClusterSumRightFactor <- t(chol(clusterSum.b$denseClusterSum - crossprod(crossClusterSumRightFactor)))
+
+denseOuterprod <- crossprod(denseClusterSumRightFactor)
+temp <- t(crossClusterSumRightFactor) -
+  crossprod(model.b$crossRightFactor, solve(model.b$sparseLeftFactor, sparseClusterSumLeftFactor))
+crossOuterprod <- tcrossprod(temp);
+denseFactorCrossprodInverse <- tcrossprod(solve(model.b$denseRightFactor))
+
+vCovBeta.hat.b <- denseFactorCrossprodInverse %*% (denseOuterprod + crossOuterprod) %*% denseFactorCrossprodInverse
+modelResults.b <- data.frame(estimate = as.numeric(model.b$beta.hat.dense), se = sqrt(diag(vCovBeta.hat.b)))
+rownames(modelResults.b) <- colnames(denseModelMatrix.b)
+@ 
+
+<<results=tex,echo=false>>=
+xtable(modelResults.b, digits=c(2, 3, 3))
+@ 
+
+\subsection{Model c}
+
+Model c uses the same sparse matrix as model b, but expands the set of
+dense predictors to include previous voting history.
+
+<<results=hide,echo=false>>=
+sparseModelMatrix.c <- sparseModelMatrix.b
+denseModelMatrix.c <- cbind(denseModelMatrix.b, g2002 = cleanData$g2002, g2000 = cleanData$g2000, p2004 = cleanData$p2004, p2002 = cleanData$p2002, p2000 = cleanData$p2000)
+
+model.c <- computeLeastSquaresFit(sparseModelMatrix.c, denseModelMatrix.c, cleanData$voted);
+
+residuals.c <- cleanData$voted - sparseModelMatrix.c %*% model.c$beta.hat.sparse -
+  denseModelMatrix.c %*% model.c$beta.hat.dense
+
+# takes a while
+# there are 340000ish rows
+clusterSumFile.c <- file.path(dataPath, "clusterSum.c.rData");
+if (!file.exists(clusterSumFile.c)) {
+  clusterSum.c <- computeBlockClusterSum(sparseModelMatrix.c, denseModelMatrix.c,
+                                         residuals.c, cleanData$hh_id);
+  save(clusterSum.c, file = clusterSumFile.c);
+} else {
+  load(clusterSumFile.c);
+}
+
+sparseClusterSumLeftFactor <- t(chol(clusterSum.c$sparseClusterSum));
+crossClusterSumRightFactor <- solve(sparseClusterSumLeftFactor, t(clusterSum.c$crossClusterSum));
+denseClusterSumRightFactor <- t(chol(clusterSum.c$denseClusterSum - crossprod(crossClusterSumRightFactor)))
+
+denseOuterprod <- crossprod(denseClusterSumRightFactor)
+temp <- t(crossClusterSumRightFactor) -
+  crossprod(model.c$crossRightFactor, solve(model.c$sparseLeftFactor, sparseClusterSumLeftFactor))
+crossOuterprod <- tcrossprod(temp);
+denseFactorCrossprodInverse <- tcrossprod(solve(model.c$denseRightFactor))
+
+vCovBeta.hat.c <- denseFactorCrossprodInverse %*% (denseOuterprod + crossOuterprod) %*% denseFactorCrossprodInverse
+modelResults.c <- data.frame(estimate = as.numeric(model.c$beta.hat.dense), se = sqrt(diag(vCovBeta.hat.c)))
+rownames(modelResults.c) <- colnames(denseModelMatrix.c)
+@
+
+<<results=tex,echo=false>>=
+xtable(modelResults.c, digits=c(2, 3, 3))
+@ 
+
+%\bibliography{article} 
+
+\end{document}

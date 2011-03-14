@@ -1,0 +1,7 @@
+This is my replication effort for ``Dynamic Ideal Points estimates via Markov Chain Monte Carlo for the US Supreme Court, 1953-1999'' by Andrew Martin and Kevin Quinn. The main goal is to replicate Figure 1 of that paper, which shows the ideological changes of the Justices who served during that periods(20 of the total 29 Justices are shown, probably because the time that the other 9 Justices served on the court is too short to give us any interesting result).
+
+The whole replication is done in R. The authors implemented a function MCMCdynamicIRT1d in the package MCMCpack to fit the model they used in the paper. Also, the data is available on their website http://mqscores.wustl.edu/replication.php. The main work is to manipulate the data. All you need to do to replicate my replication is to run code.R and fig.1 is the resulting figure. Remember to install MCMCpack and ggplot2 packages first. 
+
+WARNIG: MCMCdynamicIRT1d is computationally intensive, it tooks me almost 8 hours to do 70,000 iterations of Gibbs sampler, so BE PATIENT!
+
+Wei	
