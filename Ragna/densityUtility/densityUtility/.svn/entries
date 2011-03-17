@@ -1,0 +1,89 @@
+8
+
+dir
+1151
+svn://scan.psych.columbia.edu/Repository/trunk/densityUtility/densityUtility
+svn://scan.psych.columbia.edu/Repository
+
+
+
+2006-08-23T18:18:11.499086Z
+160
+matthew
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+a7b2ed3e-3a17-0410-bf9f-8ac42634c47e
+
+density_choose_radius.m
+file
+
+
+
+
+2006-06-27T21:11:20.000000Z
+5484ab8732f42976bbcd50adf8b9c0a7
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+has-props
+
+density2_calculations
+dir
+
+i_density.m
+file
+
+
+
+
+2006-06-27T21:11:20.000000Z
+6381d81e97ecb1e0e5651439d69fe038
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+has-props
+
+density_analysis_calculations
+dir
+
+recover_choose_radius.m
+file
+
+
+
+
+2006-06-27T21:11:20.000000Z
+c2595b622bb975d698baff4622ff3e77
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+has-props
+
+density_plots_tables
+dir
+
+smooth_dens_and_mask.m
+file
+
+
+
+
+2006-06-27T21:11:20.000000Z
+34830d56630a1c2fab559d3ddcde9065
+2006-06-27T20:10:45.432986Z
+1
+scnlab
+has-props
+

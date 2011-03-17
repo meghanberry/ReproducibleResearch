@@ -1,0 +1,27 @@
+function [chi2,df,p,sig,warn] = chi2test(counts)
+
+% rows are conditions
+% columns are measures
+% e.g., rows are students/nonstudents, columns are number reading and
+% number watching TV
+% OR
+% rows are tasks, columns are "Yesses" and "Nos" 
+
+warn = 0;   % warning for low expected counts (< 5)
+
+df = (size(counts,1)-1) .* (size(counts,2)-1);
+s = sum(counts(:));
+
+rowmarg = sum(counts,2) ./ s;   % marginal proportions for rows
+colmarg = sum(counts,1) ./ s;   % marginal proportions for columns
+
+e = rowmarg * colmarg .* s;     % expected counts
+if any(e(:)) < 5, warn = 1;,end
+
+d = (counts - e).^2 ./ e;
+chi2 = sum(d(:));
+
+p = 1 - chi2cdf(chi2,df);
+sig = p < .05;
+
+return
